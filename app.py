@@ -1,6 +1,7 @@
 # app.py
 # ============================================
 # Taller ML – Parte 1: Regresión (Housing)
+# Descriptivo + Bivariados + Múltiple + Conclusiones
 # ============================================
 
 import io
@@ -42,34 +43,46 @@ def scatter_with_fit(df, xcol, ycol="MEDV", sharey=None):
     fig, ax = plt.subplots()
     sns.scatterplot(x=xcol, y=ycol, data=df, ax=ax, alpha=0.6)
     ax.plot(X.ravel()[order], y_hat[order])
-    title = f"{xcol} vs {ycol} — R²={r2:.3f}\n{ycol} = {b0:,.0f} + ({b1:,.2f})·{xcol}"
+    title = f"{xcol} vs {ycol} — R²={r2:.3f}\n{ycol} = {b0:,.2f} + ({b1:,.2f})·{xcol}"
     ax.set_title(title)
     ax.set_xlabel(xcol); ax.set_ylabel(ycol); ax.grid(alpha=0.25)
     if sharey: ax.set_ylim(sharey)
     st.pyplot(fig)
     return r2, b0, b1
 
+def interpret_simple(var, r2, sign):
+    if r2 >= 0.5:
+        strenght = "fuerte"
+    elif r2 >= 0.3:
+        strenght = "moderada"
+    elif r2 >= 0.1:
+        strenght = "débil"
+    else:
+        strenght = "muy débil"
+
+    direction = "positiva" if sign > 0 else "negativa"
+    return f"- {var}: asociación {direction} {strenght} (R²={r2:.3f})."
+
 # ---------- Sidebar ----------
 st.sidebar.title("Configuración")
 uploaded = st.sidebar.file_uploader("Sube housing.csv (opcional)", type=["csv"])
-st.sidebar.markdown("El dataset debe tener las columnas: **RM**, **LSTAT**, **PTRATIO**, **MEDV**.")
+st.sidebar.markdown("Dataset con columnas: **RM**, **LSTAT**, **PTRATIO**, **MEDV**.")
 
-# ---------- Carga de datos (corregido) ----------
-# 1) Intentar leer el archivo del repo primero (junto a app.py)
+# ---------- Carga de datos ----------
 df = None
 try:
-    df = read_csv_any("housing.csv")  # Ajusta a 'data/housing.csv' si lo moviste a una carpeta
+    # si está junto a app.py
+    df = read_csv_any("housing.csv")
 except Exception:
     df = None
 
-# 2) Si no existe en el repo, usar el que suba el usuario
 if df is None and uploaded is not None:
     df = read_csv_any(uploaded)
 
 st.title("🏠 Taller ML – Parte 1: Regresión (Housing)")
 
 if df is None:
-    st.info("Sube **housing.csv** en la barra lateral o colócalo junto a *app.py* en el repo.")
+    st.info("Sube **housing.csv** en la barra lateral o colócalo junto a *app.py*.")
     st.stop()
 
 # ---------- Validación de columnas ----------
@@ -79,8 +92,10 @@ if missing:
     st.error(f"Faltan columnas requeridas: {missing}. Columnas encontradas: {df.columns.tolist()}")
     st.stop()
 
-# ---------- Sección 1: EDA ----------
-st.header("1) Exploración de datos")
+# ============================================
+# SECCIÓN 1: DESCRIPTIVO
+# ============================================
+st.header("1) Descriptivo")
 c1, c2 = st.columns([2, 1])
 
 with c1:
@@ -108,8 +123,10 @@ with c4:
     fig, ax = plt.subplots()
     sns.histplot(df["MEDV"], kde=False, ax=ax); ax.set_title("Distribución MEDV"); st.pyplot(fig)
 
-# ---------- Sección 2: Modelos lineales simples ----------
-st.header("2) Modelos lineales simples (MEDV ~ X)")
+# ============================================
+# SECCIÓN 2: ANÁLISIS BIVARIADOS (MEDV ~ X)
+# ============================================
+st.header("2) Análisis bivariados (Modelos lineales simples)")
 ymin, ymax = df["MEDV"].min()*0.9, df["MEDV"].max()*1.05
 colA, colB, colC = st.columns(3)
 
@@ -117,36 +134,41 @@ with colA: r2_rm, b0_rm, b1_rm = scatter_with_fit(df, "RM", "MEDV", sharey=(ymin
 with colB: r2_ls, b0_ls, b1_ls = scatter_with_fit(df, "LSTAT", "MEDV", sharey=(ymin, ymax))
 with colC: r2_pt, b0_pt, b1_pt = scatter_with_fit(df, "PTRATIO", "MEDV", sharey=(ymin, ymax))
 
-st.markdown("**Comparación R² (simple):**")
-st.dataframe(
-    pd.DataFrame({
-        "Variable": ["LSTAT", "RM", "PTRATIO"],
-        "R²": [r2_ls, r2_rm, r2_pt],
-        "Ecuación": [
-            f"MEDV = {b0_ls:,.0f} + ({b1_ls:,.2f})·LSTAT",
-            f"MEDV = {b0_rm:,.0f} + ({b1_rm:,.2f})·RM",
-            f"MEDV = {b0_pt:,.0f} + ({b1_pt:,.2f})·PTRATIO",
-        ]
-    }).sort_values("R²", ascending=False)
-)
+# Tabla comparativa
+st.markdown("**Comparación R² (simple)**")
+comparacion = pd.DataFrame({
+    "Variable": ["LSTAT", "RM", "PTRATIO"],
+    "R²": [r2_ls, r2_rm, r2_pt],
+    "Pendiente": [b1_ls, b1_rm, b1_pt]
+}).sort_values("R²", ascending=False)
+st.dataframe(comparacion)
 
-# ---------- Sección 3: Regresión múltiple ----------
+st.markdown("**Lectura rápida de los bivariados:**")
+st.markdown("\n".join([
+    interpret_simple("RM", r2_rm, b1_rm),
+    interpret_simple("LSTAT", r2_ls, b1_ls),
+    interpret_simple("PTRATIO", r2_pt, b1_pt),
+]))
+
+# ============================================
+# SECCIÓN 3: REGRESIÓN LINEAL MÚLTIPLE
+# ============================================
 st.header("3) Regresión lineal múltiple (All-in)")
 X = df[["RM", "LSTAT", "PTRATIO"]].values
 y = df["MEDV"].values
 
-# Ecuación en todo el set (mostrar coeficientes)
+# Entrenamiento en todo el set (coeficientes)
 lr_all = LinearRegression().fit(X, y)
 y_hat_all = lr_all.predict(X)
 r2_all = r2_score(y, y_hat_all)
 coef_map = dict(zip(["RM", "LSTAT", "PTRATIO"], lr_all.coef_))
 st.markdown(
-    f"**Ecuación:** `MEDV = {lr_all.intercept_:,.0f} + "
+    f"**Ecuación (entrenamiento completo):** `MEDV = {lr_all.intercept_:.2f} + "
     f"({coef_map['RM']:.2f})·RM + ({coef_map['LSTAT']:.2f})·LSTAT + ({coef_map['PTRATIO']:.2f})·PTRATIO`"
 )
-st.markdown(f"**R² (entrenamiento completo):** `{r2_all:.3f}`")
+st.markdown(f"**R² (entrenamiento):** `{r2_all:.3f}`")
 
-# Split para métricas de generalización
+# Split para estimar generalización
 X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.25, random_state=42)
 lr = LinearRegression().fit(X_tr, y_tr)
 y_pred = lr.predict(X_te)
@@ -166,18 +188,38 @@ ax.set_ylabel("Residual")
 ax.set_title("Residuales vs Predicción — Regresión múltiple")
 st.pyplot(fig)
 
-# ---------- Sección 4: Predicción interactiva ----------
+# ============================================
+# SECCIÓN 4: PREDICCIÓN INTERACTIVA
+# ============================================
 st.header("4) Predicción interactiva (modelo múltiple)")
 c1, c2, c3 = st.columns(3)
 rm = c1.slider("RM (habitaciones promedio)", float(df.RM.min()), float(df.RM.max()), float(df.RM.median()))
 lstat = c2.slider("LSTAT (% estatus bajo)", float(df.LSTAT.min()), float(df.LSTAT.max()), float(df.LSTAT.median()))
 ptr = c3.slider("PTRATIO (alumnos/profesor)", float(df.PTRATIO.min()), float(df.PTRATIO.max()), float(df.PTRATIO.median()))
-
 pred = lr.predict(np.array([[rm, lstat, ptr]]))[0]
 st.metric("Valor estimado de la vivienda (USD)", f"${pred:,.0f}")
 
+# ============================================
+# SECCIÓN 5: CONCLUSIONES
+# ============================================
+st.header("5) Conclusiones")
+auto = []
+orden = comparacion.sort_values("R²", ascending=False).reset_index(drop=True)
+top = orden.iloc[0]["Variable"]
+auto.append(
+    f"1) En bivariados, **{top}** presenta el mayor R², por lo que explica más variación individual de MEDV que las otras variables."
+)
+auto.append(
+    "2) El modelo múltiple mejora el poder explicativo respecto a los modelos simples y entrega métricas de generalización (R²_test, RMSE, MAE)."
+)
+auto.append(
+    "3) El análisis de residuales no muestra patrones extremos; sin embargo, se sugiere evaluar supuestos (linealidad, homocedasticidad) con pruebas adicionales."
+)
+auto.append(
+    "4) Para uso práctico, considerar ingeniería de variables y validación cruzada, e incluir más predictores si están disponibles."
+)
+st.markdown("\n".join(auto))
+
 st.caption(
-    "Los modelos simples muestran la relación individual con MEDV (R²). "
-    "El modelo múltiple combina predictores y suele mejorar el poder explicativo. "
-    "El gráfico de residuales ayuda a evaluar supuestos del modelo lineal."
+    "Esta app integra: descriptivo, bivariados (con recta de ajuste), regresión múltiple con split, residuales y conclusiones."
 )
