@@ -52,16 +52,15 @@ def scatter_with_fit(df, xcol, ycol="MEDV", sharey=None):
 
 def interpret_simple(var, r2, sign):
     if r2 >= 0.5:
-        strenght = "fuerte"
+        strength = "fuerte"
     elif r2 >= 0.3:
-        strenght = "moderada"
+        strength = "moderada"
     elif r2 >= 0.1:
-        strenght = "débil"
+        strength = "débil"
     else:
-        strenght = "muy débil"
-
+        strength = "muy débil"
     direction = "positiva" if sign > 0 else "negativa"
-    return f"- {var}: asociación {direction} {strenght} (R²={r2:.3f})."
+    return f"- {var}: asociación {direction} {strength} (R²={r2:.3f})."
 
 # ---------- Sidebar ----------
 st.sidebar.title("Configuración")
@@ -134,7 +133,6 @@ with colA: r2_rm, b0_rm, b1_rm = scatter_with_fit(df, "RM", "MEDV", sharey=(ymin
 with colB: r2_ls, b0_ls, b1_ls = scatter_with_fit(df, "LSTAT", "MEDV", sharey=(ymin, ymax))
 with colC: r2_pt, b0_pt, b1_pt = scatter_with_fit(df, "PTRATIO", "MEDV", sharey=(ymin, ymax))
 
-# Tabla comparativa
 st.markdown("**Comparación R² (simple)**")
 comparacion = pd.DataFrame({
     "Variable": ["LSTAT", "RM", "PTRATIO"],
@@ -172,8 +170,13 @@ st.markdown(f"**R² (entrenamiento):** `{r2_all:.3f}`")
 X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.25, random_state=42)
 lr = LinearRegression().fit(X_tr, y_tr)
 y_pred = lr.predict(X_te)
+
 r2_te = r2_score(y_te, y_pred)
-rmse = mean_squared_error(y_te, y_pred, squared=False)
+
+# Compatibilidad amplia: RMSE = sqrt(MSE) (sin 'squared=False')
+mse = mean_squared_error(y_te, y_pred)
+rmse = np.sqrt(mse)
+
 mae = mean_absolute_error(y_te, y_pred)
 
 st.markdown("**Métricas en test (25%)**")
@@ -213,10 +216,10 @@ auto.append(
     "2) El modelo múltiple mejora el poder explicativo respecto a los modelos simples y entrega métricas de generalización (R²_test, RMSE, MAE)."
 )
 auto.append(
-    "3) El análisis de residuales no muestra patrones extremos; sin embargo, se sugiere evaluar supuestos (linealidad, homocedasticidad) con pruebas adicionales."
+    "3) El análisis de residuales no muestra patrones extremos; aun así, conviene validar supuestos (linealidad y homocedasticidad) con pruebas adicionales."
 )
 auto.append(
-    "4) Para uso práctico, considerar ingeniería de variables y validación cruzada, e incluir más predictores si están disponibles."
+    "4) Para trabajo futuro: usar validación cruzada, probar transformaciones (log/Box-Cox), interacciones y más predictores si están disponibles."
 )
 st.markdown("\n".join(auto))
 
