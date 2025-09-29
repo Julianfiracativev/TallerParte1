@@ -20,6 +20,7 @@ sns.set_style("whitegrid")
 # ---------- Helpers ----------
 @st.cache_data
 def read_csv_any(file):
+    """Lee CSV desde ruta local (string) o desde el uploader de Streamlit."""
     if isinstance(file, str):
         return pd.read_csv(file)
     return pd.read_csv(file)
@@ -51,29 +52,31 @@ def scatter_with_fit(df, xcol, ycol="MEDV", sharey=None):
 # ---------- Sidebar ----------
 st.sidebar.title("Configuración")
 uploaded = st.sidebar.file_uploader("Sube housing.csv (opcional)", type=["csv"])
-st.sidebar.markdown(
-    "El dataset debe tener las columnas: **RM**, **LSTAT**, **PTRATIO**, **MEDV**."
-)
+st.sidebar.markdown("El dataset debe tener las columnas: **RM**, **LSTAT**, **PTRATIO**, **MEDV**.")
 
-# Carga de datos
+# ---------- Carga de datos (corregido) ----------
+# 1) Intentar leer el archivo del repo primero (junto a app.py)
 df = None
-if uploaded is not None:
+try:
+    df = read_csv_any("housing.csv")  # Ajusta a 'data/housing.csv' si lo moviste a una carpeta
+except Exception:
+    df = None
+
+# 2) Si no existe en el repo, usar el que suba el usuario
+if df is None and uploaded is not None:
     df = read_csv_any(uploaded)
-else:
-    # Si subes el CSV al repo, descomenta la línea de abajo:
-    # df = read_csv_any("housing.csv")
-    pass
 
 st.title("🏠 Taller ML – Parte 1: Regresión (Housing)")
 
 if df is None:
-    st.info("Sube **housing.csv** en la barra lateral o coloca el archivo junto a *app.py* y descomenta la línea en el código.")
+    st.info("Sube **housing.csv** en la barra lateral o colócalo junto a *app.py* en el repo.")
     st.stop()
 
-# Validación de columnas
+# ---------- Validación de columnas ----------
 needed = ["RM", "LSTAT", "PTRATIO", "MEDV"]
-if not all(c in df.columns for c in needed):
-    st.error(f"Faltan columnas. Se requieren: {needed}. Encontradas: {df.columns.tolist()}")
+missing = [c for c in needed if c not in df.columns]
+if missing:
+    st.error(f"Faltan columnas requeridas: {missing}. Columnas encontradas: {df.columns.tolist()}")
     st.stop()
 
 # ---------- Sección 1: EDA ----------
@@ -132,7 +135,7 @@ st.header("3) Regresión lineal múltiple (All-in)")
 X = df[["RM", "LSTAT", "PTRATIO"]].values
 y = df["MEDV"].values
 
-# Ecuación en todo el set (solo para mostrar coeficientes)
+# Ecuación en todo el set (mostrar coeficientes)
 lr_all = LinearRegression().fit(X, y)
 y_hat_all = lr_all.predict(X)
 r2_all = r2_score(y, y_hat_all)
@@ -174,7 +177,7 @@ pred = lr.predict(np.array([[rm, lstat, ptr]]))[0]
 st.metric("Valor estimado de la vivienda (USD)", f"${pred:,.0f}")
 
 st.caption(
-    "Notas: Los modelos simples muestran la fuerza de relación individual (R²). "
+    "Los modelos simples muestran la relación individual con MEDV (R²). "
     "El modelo múltiple combina predictores y suele mejorar el poder explicativo. "
-    "El gráfico de residuales apoya la evaluación de linealidad/homocedasticidad."
+    "El gráfico de residuales ayuda a evaluar supuestos del modelo lineal."
 )
